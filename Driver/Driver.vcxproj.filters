@@ -33,9 +33,24 @@
     <ClCompile Include="ctl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ex.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ctx.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="driver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ex.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ctl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ctx.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
