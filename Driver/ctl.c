@@ -175,7 +175,7 @@ HandleInitializationGlobalContext(
     Result.SizeOfData = 0;
     Result.Data = NULL;
     WriteResult(OutputBuffer, OutputBufferLength, Information, &Result);
-    return STATUS_SUCCESS;
+  	return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -200,4 +200,3 @@ HandleQueryNtosKrnlModuleInformation(
     WriteResult(OutputBuffer, OutputBufferLength, Information, &Result);
     return STATUS_SUCCESS;
 }
-

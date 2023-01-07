@@ -220,12 +220,16 @@
     <ClCompile Include="ctx.c" />
     <ClCompile Include="driver.c" />
     <ClCompile Include="ex.c" />
+    <ClCompile Include="ob.c" />
+    <ClCompile Include="ps.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ctl.h" />
     <ClInclude Include="ctx.h" />
     <ClInclude Include="driver.h" />
     <ClInclude Include="ex.h" />
+    <ClInclude Include="ob.h" />
+    <ClInclude Include="ps.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

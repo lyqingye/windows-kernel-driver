@@ -149,15 +149,21 @@ typedef BOOLEAN(*EX_ENUMERATE_HANDLE_ROUTINE)(
 	IN PVOID EnumParameter
 	);
 
+typedef BOOLEAN(*EX_DESTROY_HANDLE)(
+	IN PHANDLE_TABLE HandleTable,
+	IN HANDLE Handle,
+	IN  PHANDLE_TABLE_ENTRY HandleTableEntry
+);
+
 PHANDLE_TABLE_ENTRY
 ExpLookupHandleTableEntry(
 	IN PHANDLE_TABLE HandleTable,
 	IN EXHANDLE tHandle
 );
 
-BOOLEAN
+VOID
 FORCEINLINE
-ExpLockHandleTableEntry(
+ExLockHandleTableEntry(
 	PHANDLE_TABLE HandleTable,
 	PHANDLE_TABLE_ENTRY HandleTableEntry
 );

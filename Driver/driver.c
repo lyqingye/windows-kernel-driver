@@ -3,26 +3,9 @@
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT,DriverEntry)
 #pragma alloc_text(PAGE,IoctlDispatchRoutine)
-#pragma alloc_text(PAGE,DispatchCreate)
 #endif
 
 e(PDEVICE_OBJECT pDevObj, PIRP pIrp)
-{
-    UNREFERENCED_PARAMETER(pDevObj);
-    pIrp->IoStatus.Status = STATUS_SUCCESS;
-    IoCompleteRequest(pIrp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
-}
-
-NTSTATUS DispatchCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
-{
-    UNREFERENCED_PARAMETER(pDevObj);
-    pIrp->IoStatus.Status = STATUS_SUCCESS;
-    IoCompleteRequest(pIrp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
-}
-
-NTSTATUS DispatchClose(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
     UNREFERENCED_PARAMETER(pDevObj);
     pIrp->IoStatus.Status = STATUS_SUCCESS;
@@ -46,8 +29,9 @@ NTSTATUS DriverUnload(PDRIVER_OBJECT DriverObject) {
     if (DriverObject->DeviceObject) {
         IoDeleteDevice(DriverObject->DeviceObject);
     }
-    // Callback
+
     HandleDriverUnload(DriverObject);
+
     RtlInitUnicodeString(&SymbolLinkName, SYMBOL_LINK_NAME);
     return IoDeleteSymbolicLink(&SymbolLinkName);
 }
@@ -58,6 +42,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING LoadPath) {
     PDEVICE_OBJECT Device = NULL;
     UNICODE_STRING DeviceName, SymbolLinkName;
 
+    DbgPrint("DriverEntry: %p\n", DriverObject);
+
     RtlInitUnicodeString(&DeviceName, DEVICE_NAME);
     RtlInitUnicodeString(&SymbolLinkName, SYMBOL_LINK_NAME);
     status = IoCreateDevice(DriverObject, 200, &DeviceName, FILE_DEVICE_UNKNOWN, 0, 1, &Device);
@@ -67,6 +53,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING LoadPath) {
     }
     Device->Flags |= DO_BUFFERED_IO;
     DbgPrint("Create Device Successful!\n");
+
     status = IoCreateSymbolicLink(&SymbolLinkName, &DeviceName);
     if (!NT_SUCCESS(status)) {
         DbgPrint("Call IoCreateSymbolicLink Error: %X\n", status);
@@ -77,12 +64,13 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING LoadPath) {
 
     DriverObject->DriverUnload = DriverUnload;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = IoctlDispatchRoutine;
-    DriverObject->MajorFunction[IRP_MJ_CREATE] = DispatchCreate;
-    DriverObject->MajorFunction[IRP_MJ_CLOSE] = DispatchClose;
+    DriverObject->MajorFunction[IRP_MJ_CREATE] = DefDispatchRoutine;
+    DriverObject->MajorFunction[IRP_MJ_CLOSE] = DefDispatchRoutine;
     DriverObject->MajorFunction[IRP_MJ_WRITE] = DefDispatchRoutine;
     DriverObject->MajorFunction[IRP_MJ_READ] = DefDispatchRoutine;
 
     // Callback
     HandleDriverLoad(DriverObject);
+
     return status;
 }

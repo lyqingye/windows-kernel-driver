@@ -39,6 +39,12 @@
     <ClCompile Include="ctx.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ob.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ps.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="driver.h">
@@ -51,6 +57,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ctx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ob.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ps.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

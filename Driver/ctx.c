@@ -29,16 +29,26 @@ NTSTATUS InitializationGlobalContext(PDRIVER_OBJECT DriverObject, PVOID Buffer, 
 	NtosKrnlBase = (ULONG_PTR)NtosKrnlModuleInfo.ImageBase;
 	ExpBlockOnLockedHandleEntry = (EXP_BLOCK_ON_LOCKED_HANDLE_ENTRY)PTR_ADD_OFFSET(NtosKrnlBase, Context->pfnExpBlockOnLockedHandleEntry);
 	ExfUnblockPushLock = (EXF_UNBLOCK_PUSH_LOCK)PTR_ADD_OFFSET(NtosKrnlBase, Context->pfnExfUnblockPushLock);
+	ExDestroyHandle = (EX_DESTROY_HANDLE)PTR_ADD_OFFSET(NtosKrnlBase, Context->pfnExDestroyHandle);
+	PspLockProcessListExclusive = (PSP_LOCK_PROCESS_LIST_EXCLUSIVE)PTR_ADD_OFFSET(NtosKrnlBase, Context->pfnPspLockProcessListExclusive);
+	PspUnlockProcessListExclusive = (PSP_UNLOCK_PROCESS_LIST_EXCLUSIVE)PTR_ADD_OFFSET(NtosKrnlBase, Context->pfnPspUnlockProcessListExclusive);
 
-#ifdef DBG
-	DbgPrint("[Context] Init NtoskrnlBase: %p\n", NtosKrnlBase);
-	DbgPrint("[Context] Init pfnExpBlockOnLockedHandleEntry: %p\n", Context->pfnExpBlockOnLockedHandleEntry);
-	DbgPrint("[Context] Init pfnExfUnblockPushLock: %p\n", Context->pfnExfUnblockPushLock);
-#endif 
+	PspCidTable = (PHANDLE_TABLE*)PTR_ADD_OFFSET(NtosKrnlBase, Context->PspCidTable);
+	ObHeaderCookie = (ULONG_PTR)PTR_ADD_OFFSET(NtosKrnlBase, Context->ObHeaderCookie);
+	ObTypeIndexTable = (ULONG_PTR)PTR_ADD_OFFSET(NtosKrnlBase, Context->ObTypeIndexTable);
+	ObpRootDirectoryObject = (ULONG_PTR)PTR_ADD_OFFSET(NtosKrnlBase, Context->ObpRootDirectoryObject);
+	PsLoadedModuleList = (PLIST_ENTRY*)PTR_ADD_OFFSET(NtosKrnlBase, Context->PsLoadedModuleList);
+	PsLoadedModuleResource = (PERESOURCE*)PTR_ADD_OFFSET(NtosKrnlBase, Context->PsLoadedModuleResource);
+	PsActiveProcessHead = (PLIST_ENTRY*)PTR_ADD_OFFSET(NtosKrnlBase, Context->PsActiveProcessHead);
+
+	OffsetTypeIndexOfObjectHeader = Context->OffsetTypeIndexOfObjectHeader;
+	OffsetTypeInfoOfObjectType = Context->OffsetTypeInfoOfObjectType;
+	OffsetTypeNameOfObjectType = Context->OffsetTypeNameOfObjectType;
+	SizeOfObjectHeader = Context->SizeOfObjectHeader;
+	OffsetDirectoryTableBaseOfEProcess = Context->OffsetDirectorTableBaseOfEProcess;
 
 	return Status;
 }
-
 
 NTSTATUS QueryNtosKrnlModuleInformation(PDRIVER_OBJECT DriverObject, PSYSTEM_MODULE_ENTRY ModuleEntry) {
 	UNICODE_STRING NtosKernelName;
@@ -58,9 +68,7 @@ NTSTATUS QueryModuleInformation(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Bas
 	while (pListEntry != NULL && pListEntry != &pModuleList->InLoadOrderLinks)
 	{
 		PKLDR_DATA_TABLE_ENTRY pEntry = CONTAINING_RECORD(pListEntry, KLDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-#ifdef DBG
-		DbgPrint("%wZ %p\n", &(pEntry->BaseDllName), pEntry->DllBase);
-#endif 
+		DbgPrint("%wZ %p\n", pEntry->BaseDllName, pEntry);
 		if (RtlCompareUnicodeString(&pEntry->BaseDllName, BaseName, TRUE) == 0) {
 			ModuleEntry->ImageBase = pEntry->DllBase;
 			ModuleEntry->ImageSize = pEntry->SizeOfImage;

@@ -37,15 +37,20 @@ typedef struct _GLOBAL_CONTEXT
 	// Functions
 	ULONG_PTR pfnExpBlockOnLockedHandleEntry;
 	ULONG_PTR pfnExfUnblockPushLock;
+	ULONG_PTR pfnExDestroyHandle;
+	ULONG_PTR pfnPspLockProcessListExclusive;
+	ULONG_PTR pfnPspUnlockProcessListExclusive;
 
 	// Gloabal Variables
 	ULONG_PTR PspCidTable;
 	ULONG_PTR PsLoadedModuleList;
 	ULONG_PTR PsLoadedModuleResource;
+	ULONG_PTR PsActiveProcessHead;
 
 	ULONG_PTR ObTypeIndexTable;
 	ULONG_PTR ObHeaderCookie;
 	ULONG_PTR ObpRootDirectoryObject;
+
 
 	// class field offset
 	ULONG_PTR SizeOfObjectHeader;
@@ -60,6 +65,7 @@ typedef struct _GLOBAL_CONTEXT
 	ULONG_PTR OffsetParseProcOfObjectTypeInitializer;
 	ULONG_PTR OffsetParseExProcOfObjectTypeInitializer;
 
+	ULONG_PTR OffsetDirectorTableBaseOfEProcess;
 }GLOBAL_CONTEXT, * PGLOBAL_CONTEXT;
 
 NTSTATUS 

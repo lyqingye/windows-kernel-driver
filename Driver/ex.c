@@ -5,7 +5,7 @@
 #pragma alloc_text(PAGE,ExpLookupHandleTableEntry)
 #pragma alloc_text(PAGE,ExEnumHandleTable)
 #pragma alloc_text(PAGE,ExUnlockHandleTableEntry)
-#pragma alloc_text(PAGE,ExpLockHandleTableEntry)
+#pragma alloc_text(PAGE,ExLockHandleTableEntry)
 
 #endif
 
@@ -75,29 +75,29 @@ ExpLookupHandleTableEntry(
 }
 
 
-BOOLEAN
+VOID
 FORCEINLINE
-ExpLockHandleTableEntry(
+ExLockHandleTableEntry(
 	PHANDLE_TABLE HandleTable,
 	PHANDLE_TABLE_ENTRY HandleTableEntry)
 {
-	LONG_PTR NewValue;
 	LONG_PTR CurrentValue;
 
 	PAGED_CODE();
-
+	
 	while (TRUE) {
 		while (TRUE) {
-			CurrentValue = ReadForWriteAccess(((volatile LONG_PTR*)&HandleTableEntry->InfoTable));
-			if (CurrentValue & EXHANDLE_TABLE_ENTRY_LOCK_BIT) {
-				NewValue = CurrentValue - EXHANDLE_TABLE_ENTRY_LOCK_BIT;
+			CurrentValue = ReadForWriteAccess(((volatile LONG_PTR*)HandleTableEntry));
+			if ((CurrentValue & EXHANDLE_TABLE_ENTRY_LOCK_BIT) != 0) {
+				if ((LONG_PTR)(InterlockedCompareExchange64((PLONG64)&HandleTableEntry->InfoTable,
+					(LONG64)CurrentValue - EXHANDLE_TABLE_ENTRY_LOCK_BIT,
+					(LONG64)CurrentValue)) == CurrentValue) {
 
-				if ((LONG_PTR)(InterlockedCompareExchangePointer(&HandleTableEntry->InfoTable,
-					(PVOID)NewValue,
-					(PVOID)CurrentValue)) == CurrentValue) {
-
-					return TRUE;
+					return;
 				}
+			}
+			else {
+				break;
 			}
 		}
 		if (!CurrentValue) {
@@ -116,7 +116,7 @@ ExUnlockHandleTableEntry(
 {
 	PAGED_CODE();
 
-	InterlockedExchangeAdd64((PLONGLONG)&HandleTableEntry->InfoTable, EXHANDLE_TABLE_ENTRY_LOCK_BIT);
+	InterlockedExchangeAdd64((PLONG64)&HandleTableEntry->InfoTable, EXHANDLE_TABLE_ENTRY_LOCK_BIT);
 
 	if (HandleTable->HandleContentionEvent) {
 	   ExfUnblockPushLock(&HandleTable->HandleContentionEvent, 0);
@@ -141,23 +141,22 @@ ExEnumHandleTable(
 	ResultValue = FALSE;
 
 	KeEnterCriticalRegion();
-
-	for (LocalHandle.Value = 0;
+	for (LocalHandle.Value = HANDLE_VALUE_INC;
 		(HandleTableEntry = ExpLookupHandleTableEntry(HandleTable, LocalHandle)) != NULL;
 		LocalHandle.Value += HANDLE_VALUE_INC) {
 		if (ExpIsValidObjectEntry(HandleTableEntry)) {
-			if (ExpLockHandleTableEntry(HandleTable, HandleTableEntry)) {
-				if (EnumHandleProcedure != NULL) {
-					ResultValue = (*EnumHandleProcedure)(HandleTableEntry,
-						LocalHandle.GenericHandleOverlay,
-						EnumParameter);
-				}
-				ULONGLONG theHandle = (HandleTableEntry->LowValue >> 0x10) & 0xfffffffffffffff0;
-				DbgPrint("%p\n", theHandle);
-				ExUnlockHandleTableEntry(HandleTable, HandleTableEntry);
-				if (ResultValue) {
-					break;
-				}
+			ExLockHandleTableEntry(HandleTable, HandleTableEntry);
+			if (EnumHandleProcedure != NULL) {
+				ResultValue = (*EnumHandleProcedure)(HandleTableEntry,
+					LocalHandle.GenericHandleOverlay,
+					EnumParameter);
+			}
+			PVOID Object = (PVOID)((HandleTableEntry->LowValue >> 0x10) & 0xfffffffffffffff0);
+			PUNICODE_STRING Name = OBJECT_TO_OBJECT_TYPE_NAME(Object);
+			DbgPrint("%p %wZ \n", Object,Name );
+			ExUnlockHandleTableEntry(HandleTable, HandleTableEntry);
+			if (ResultValue) {
+				break;
 			}
 		}
 	}
