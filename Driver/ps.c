@@ -51,7 +51,7 @@ InsertModuleEntryToLoadedModuleList(
 }
 
 NTSTATUS
-ReadVirtualMemoryById(
+ReadProcessVirtualMemory(
 	HANDLE ProcessId,
 	PVOID VirtualAddress,
 	PVOID Buffer,
@@ -67,7 +67,7 @@ ReadVirtualMemoryById(
 }
 
 NTSTATUS
-WriteVirtualMemoryById(
+WriteProcessVirtualMemory(
 	HANDLE ProcessId,
 	PVOID VirtualAddress,
 	PVOID Buffer,
@@ -92,6 +92,9 @@ ReadVirtualMemory(
 	PSIZE_T BytesRead
 )
 {
+	if (Bytes > PAGE_SIZE) {
+		return STATUS_INVALID_PARAMETER;
+	}
 	PVOID PageTable = *(PVOID *)PTR_ADD_OFFSET(Eprocess, OffsetDirectoryTableBaseOfEProcess);
 	if (PageTable == NULL) {
 		return STATUS_INVALID_PARAMETER;
@@ -114,6 +117,9 @@ WriteVirtualMemory(
 	PSIZE_T BytesWrite
 )
 {
+	if (Bytes > PAGE_SIZE) {
+		return STATUS_INVALID_PARAMETER;
+	}
 	PVOID PageTable = *(PVOID *)PTR_ADD_OFFSET(Eprocess, OffsetDirectoryTableBaseOfEProcess);
 	if (PageTable == NULL) {
 		return STATUS_INVALID_PARAMETER;
@@ -155,7 +161,7 @@ WritePhysicalMemory(
 	if (!Mapped) {
 		return STATUS_UNSUCCESSFUL;
 	}
-	RtlCopyMemory(Buffer, Mapped, Bytes);
+	RtlCopyMemory(Mapped, Buffer, Bytes);
 	*BytesWrite = Bytes;
 	MmUnmapIoSpace(Mapped, Bytes);
 	return STATUS_SUCCESS;
@@ -226,4 +232,9 @@ TranslateVirtualAddressToPhysicalAddress(
 	}
 
 	return (PVOID)(Page + PageOffset);
+}
+
+ULONG_PTR
+FindPageTableSelfMappingIndex() {
+	return 0;
 }

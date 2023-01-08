@@ -3,8 +3,11 @@
 #ifndef DRIVER
 #define DRIVER
 
+#pragma warning(disable: 4359)
+
 //#include <ntddk.h>
 #include <ntifs.h>
+#include <intrin.h>
 #include "ex.h"
 #include "ctl.h"
 #include "ctx.h"

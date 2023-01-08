@@ -1,31 +1,47 @@
 #include "driver.h"
 
-VOID 
+NTSTATUS 
+CreateResult(
+    PVOID Buffer, 
+    ULONG BufferLength,
+    PULONG_PTR Information,
+    PRESULT *Result
+)
+{
+    *Information = sizeof(RESULT);
+    if (BufferLength < sizeof(RESULT)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+    RtlZeroMemory(Buffer, sizeof(RESULT));
+    *Result = (PRESULT)Buffer;
+    (*Result)->Status = STATUS_SUCCESS;
+    (*Result)->SizeOfData = 0;
+    return STATUS_SUCCESS;
+}
+
+VOID
 WriteResult(
-    PVOID OutputBuffer, 
-    ULONG OutputBufferLength, 
-    PULONG_PTR Information, 
-    PRESULT Result
+    ULONG OutputBufferLength,
+    PULONG_PTR Information,
+    PRESULT Result,
+    PVOID Data,
+    SIZE_T SizeOfData
 ) {
     if (Information && Result) {
-        SIZE_T SizeOfMeta = sizeof(NTSTATUS) + sizeof(SIZE_T);
-        SIZE_T SizeOfResult = SizeOfMeta + Result->SizeOfData;
+        SIZE_T SizeOfMeta = sizeof(RESULT);
+        SIZE_T SizeOfResult = SizeOfMeta + SizeOfData;
         // acture output length
         (*Information) = (ULONG_PTR)(SizeOfResult);
 
-        if (OutputBuffer && (OutputBufferLength >= SizeOfMeta)) {
-            // copy Status & SizeOfData
-            RtlZeroMemory(OutputBuffer, SizeOfMeta);
-            PUINT8 Out = (PUINT8)OutputBuffer;
-            RtlCopyMemory((PVOID)Out, (PVOID)Result, sizeof(NTSTATUS));
-            Out += sizeof(NTSTATUS);
-            RtlCopyMemory((PVOID)Out, (PVOID)(&(Result->SizeOfData)), sizeof(SIZE_T));
-
-            // copy data
-            if (OutputBufferLength >= SizeOfResult && Result->Data && Result->SizeOfData) {
-                Out += sizeof(SIZE_T);
-                RtlZeroMemory((PVOID)Out, Result->SizeOfData);
-                RtlCopyMemory((PVOID)Out, Result->Data, Result->SizeOfData);
+        PVOID OutputBuffer = (PVOID)((ULONG_PTR)Result + SizeOfMeta);
+        if (Data && SizeOfData) {
+            if (OutputBufferLength >= SizeOfResult) {
+				RtlZeroMemory(OutputBuffer, SizeOfData);
+				RtlCopyMemory(OutputBuffer, Data,SizeOfData);
+				Result->SizeOfData = SizeOfData;
+            }
+            else {
+				Result->Status = STATUS_BUFFER_TOO_SMALL;
             }
         }
     }
@@ -51,8 +67,6 @@ IoctlDispatchRoutine(
     PDEVICE_OBJECT pDevObj,
     PIRP pIrp
 ) {
-    UNREFERENCED_PARAMETER(pDevObj);
-
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     PIO_STACK_LOCATION IoStackLocation = IoGetCurrentIrpStackLocation(pIrp);
     PVOID Input = pIrp->AssociatedIrp.SystemBuffer;
@@ -62,12 +76,13 @@ IoctlDispatchRoutine(
     ULONG OutputBufferLength = IoStackLocation->Parameters.DeviceIoControl.OutputBufferLength;
     ULONG_PTR Information = 0;
 
-    UNREFERENCED_PARAMETER(Input);
-    UNREFERENCED_PARAMETER(Output);
-    UNREFERENCED_PARAMETER(InputBufferLength);
-    UNREFERENCED_PARAMETER(OutputBufferLength);
-
     PAGED_CODE();
+    DbgPrint("Call Driver Start Code: %x\n", Code);
+    DbgPrint("-> Input: %p\n", Input);
+    DbgPrint("-> Output: %p\n", Output);
+    DbgPrint("-> InputBufferLength: %d\n", InputBufferLength);
+    DbgPrint("-> OutputBufferLength: %d\n", OutputBufferLength);
+
     switch (Code)
     {
     case CTL_CODE_ECHO:
@@ -100,12 +115,35 @@ IoctlDispatchRoutine(
             &Information
         );
         break;
+    case CTL_CODE_READ_PROCESS_MEMORY:
+        Status = HandleReadProcessMemory(
+            pDevObj,
+            InputBufferLength,
+            OutputBufferLength,
+            Input,
+            Output,
+            &Information
+        );
+        break;
+    case CTL_CODE_WRITE_PROCESS_MEMORY:
+        Status = HandleWriteProcessMemory(
+            pDevObj,
+            InputBufferLength,
+            OutputBufferLength,
+            Input,
+            Output,
+            &Information
+        );
+        break;
     default:
         break;
     }
     pIrp->IoStatus.Status = Status;
     pIrp->IoStatus.Information = Information;
     IoCompleteRequest(pIrp, IO_NO_INCREMENT);
+
+    DbgPrint("Call Driver End Information: %d\n", Information);
+
     return Status;
 }
 
@@ -120,37 +158,13 @@ HandleEcho(
 ) {
     UNREFERENCED_PARAMETER(DeviceObject);
 
-    NTSTATUS Status = STATUS_SUCCESS;
-#ifdef DBG
-    DbgPrint("[Dispatch][Echo] InputBufferLength: %d\n", InputBufferLength);
-    DbgPrint("[Dispatch][Echo] OutputBufferLength: %d\n", OutputBufferLength);
-#endif 
-
-    if (InputBuffer && InputBufferLength > 0) {
-        PVOID EchoBuffer = ExAllocatePoolZero(NonPagedPool, InputBufferLength, 'echo');
-        if (EchoBuffer == NULL) {
-            Status = STATUS_NO_MEMORY;
-#ifdef DBG
-            DbgPrint("[Dispatch][Echo] allocate echo buffer error!\n");
-#endif 
-        }
-        else {
-            // copy input data to buffer
-            RtlCopyMemory(EchoBuffer, InputBuffer, InputBufferLength);
-            RESULT Result;
-            Result.Status = STATUS_SUCCESS;
-            Result.SizeOfData = 0;
-
-            if (OutputBuffer && OutputBufferLength > 0) {
-                Result.SizeOfData = InputBufferLength;
-                Result.Data = EchoBuffer;
-            }
-            WriteResult(OutputBuffer, OutputBufferLength, Information, &Result);
-            ExFreePool(EchoBuffer);
-        }
-    }
-
-    return Status;
+	PRESULT Result;
+    NTSTATUS Status = CreateResult(OutputBuffer, OutputBufferLength,Information, &Result);
+	if (!NT_SUCCESS(Status)) {
+		return Status;
+	}
+	WriteResult(OutputBufferLength, Information, Result, InputBuffer, InputBufferLength);
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -166,15 +180,28 @@ HandleInitializationGlobalContext(
 
     GLOBAL_CONTEXT GlobalContext;
 
-    RESULT Result;
-    Result.Status = InitializationGlobalContext(
+	PRESULT Result;
+    NTSTATUS Status = CreateResult(OutputBuffer, OutputBufferLength, Information, &Result);
+	if (!NT_SUCCESS(Status)) {
+		return Status;
+	}
+
+    Result->Status = InitializationGlobalContext(
         DeviceObject->DriverObject,
         InputBuffer,
         InputBufferLength,
         &GlobalContext);
-    Result.SizeOfData = 0;
-    Result.Data = NULL;
-    WriteResult(OutputBuffer, OutputBufferLength, Information, &Result);
+	WriteResult(OutputBufferLength, Information, Result, NULL, 0);
+
+    PHYSICAL_ADDRESS Address = { 0 };
+    Address.QuadPart = __readcr3();
+    PVOID VA = MmGetVirtualForPhysical(Address);
+    ULONG_PTR index = (((ULONG_PTR)VA >> 39) & (0x1ffll));
+
+    ULONG_PTR pte_base = (index << 39) | 0xFFFF000000000000;
+    ULONG_PTR pde_base = (index << 30) | pte_base;
+    ULONG_PTR ppe_base = (index << 21) | pde_base;
+    ULONG_PTR pxe_base = (index << 12) | ppe_base;
   	return STATUS_SUCCESS;
 }
 
@@ -191,12 +218,99 @@ HandleQueryNtosKrnlModuleInformation(
     UNREFERENCED_PARAMETER(InputBuffer);
 
     SYSTEM_MODULE_ENTRY Entry;
-    RESULT Result;
-    Result.Status = QueryNtosKrnlModuleInformation(DeviceObject->DriverObject, &Entry);
-    if (NT_SUCCESS(Result.Status)) {
-        Result.SizeOfData = sizeof(SYSTEM_MODULE_ENTRY);
-        Result.Data = (PVOID)&Entry;
+	PRESULT Result;
+    NTSTATUS Status = CreateResult(OutputBuffer, OutputBufferLength,Information, &Result);
+	if (!NT_SUCCESS(Status)) {
+		return Status;
+	}
+    Result->Status = QueryNtosKrnlModuleInformation(DeviceObject->DriverObject, &Entry);
+    if (NT_SUCCESS(Result->Status)) {
+        WriteResult(OutputBufferLength, Information, Result, (PVOID)&Entry, sizeof(SYSTEM_MODULE_ENTRY));
     }
-    WriteResult(OutputBuffer, OutputBufferLength, Information, &Result);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+HandleReadProcessMemory(
+    PDEVICE_OBJECT DeviceObject,
+    ULONG InputBufferLength,
+    ULONG OutputBufferLength,
+    PVOID InputBuffer,
+    PVOID OutputBuffer,
+    PULONG_PTR Information
+)
+{
+    UNREFERENCED_PARAMETER(DeviceObject);
+
+    typedef struct _PARAM {
+        HANDLE ProcessId;
+        PVOID Address;
+        SIZE_T NumOfBytes;
+    }PARAM;
+
+    if (InputBufferLength < sizeof(PARAM)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+    // Copy Param
+    PARAM Param = *(PARAM*)InputBuffer;
+
+	PRESULT Result;
+    NTSTATUS Status = CreateResult(OutputBuffer, OutputBufferLength,Information, &Result);
+	if (!NT_SUCCESS(Status)) {
+		return Status;
+	}
+
+    SIZE_T NeedSize = sizeof(RESULT) + Param.NumOfBytes;
+    if (OutputBufferLength < NeedSize) {
+        *Information = NeedSize;
+        goto Exit;
+    }
+    PVOID ReadBuffer = PTR_ADD_OFFSET(OutputBuffer, sizeof(RESULT));
+    Result->Status = ReadProcessVirtualMemory(Param.ProcessId, Param.Address, ReadBuffer, Param.NumOfBytes,&Result->SizeOfData);
+    *Information = sizeof(RESULT) + Result->SizeOfData;
+Exit:
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+HandleWriteProcessMemory(
+    PDEVICE_OBJECT DeviceObject,
+    ULONG InputBufferLength,
+    ULONG OutputBufferLength,
+    PVOID InputBuffer,
+    PVOID OutputBuffer,
+    PULONG_PTR Information
+)
+{
+    UNREFERENCED_PARAMETER(DeviceObject);
+    typedef struct _PARAM {
+        HANDLE ProcessId;
+        PVOID Address;
+        SIZE_T NumOfBytes;
+    }PARAM;
+    if (InputBufferLength < sizeof(PARAM)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+    // Copy Param
+    PARAM Param = *(PARAM*)InputBuffer;
+    SIZE_T NeedSize = sizeof(PARAM);
+    if (InputBufferLength < NeedSize) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    // Write Memory
+    PVOID WriteBuffer = PTR_ADD_OFFSET(InputBuffer, sizeof(PARAM));
+    SIZE_T BytesToWrite = 0;
+    NTSTATUS CallStatus = WriteProcessVirtualMemory(Param.ProcessId, Param.Address, WriteBuffer, Param.NumOfBytes, &BytesToWrite);
+
+    // Fill Result
+	PRESULT Result;
+    NTSTATUS Status = CreateResult(OutputBuffer, OutputBufferLength,Information, &Result);
+	if (!NT_SUCCESS(Status)) {
+		return Status;
+	}
+    Result->Status = CallStatus;
+    WriteResult(OutputBufferLength, Information, Result, (PVOID)&BytesToWrite, sizeof(SIZE_T));
+
     return STATUS_SUCCESS;
 }

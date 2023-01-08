@@ -21,7 +21,7 @@ InsertModuleEntryToLoadedModuleList(
 );
 
 NTSTATUS
-ReadVirtualMemoryById(
+ReadProcessVirtualMemory(
 	HANDLE ProcessId,
 	PVOID VirtualAddress,
 	PVOID Buffer,
@@ -30,7 +30,7 @@ ReadVirtualMemoryById(
 );
 
 NTSTATUS
-WriteVirtualMemoryById(
+WriteProcessVirtualMemory(
 	HANDLE ProcessId,
 	PVOID VirtualAddress,
 	PVOID Buffer,
@@ -56,6 +56,7 @@ WriteVirtualMemory(
 	PSIZE_T BytesWrite
 );
 
+FORCEINLINE
 NTSTATUS
 ReadPhysicalMemory(
 	PVOID PhysicalAddress,
@@ -64,6 +65,7 @@ ReadPhysicalMemory(
 	PSIZE_T BytesRead
 );
 
+FORCEINLINE
 NTSTATUS
 WritePhysicalMemory(
 	PVOID PhysicalAddress,
