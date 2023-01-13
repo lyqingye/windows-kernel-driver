@@ -63,7 +63,11 @@ ReadProcessVirtualMemory(
 	if (!NT_SUCCESS(PsLookupProcessByProcessId(ProcessId, &Eprocess))) {
 		return STATUS_UNSUCCESSFUL;
 	}
-	return ReadVirtualMemory(Eprocess, VirtualAddress, Buffer, Bytes, BytesRead);
+	PVOID PageTable = *(PVOID*)PTR_ADD_OFFSET(Eprocess, OffsetDirectoryTableBaseOfEProcess);
+	if (PageTable == NULL) {
+		return STATUS_INVALID_PARAMETER;
+	}
+	return ReadVirtualMemory(PageTable, VirtualAddress, Buffer, Bytes, BytesRead);
 }
 
 NTSTATUS
@@ -79,13 +83,17 @@ WriteProcessVirtualMemory(
 	if (!NT_SUCCESS(PsLookupProcessByProcessId(ProcessId, &Eprocess))) {
 		return STATUS_UNSUCCESSFUL;
 	}
-	return WriteVirtualMemory(Eprocess, VirtualAddress, Buffer, Bytes, BytesWrite);
+	PVOID PageTable = *(PVOID*)PTR_ADD_OFFSET(Eprocess, OffsetDirectoryTableBaseOfEProcess);
+	if (PageTable == NULL) {
+		return STATUS_INVALID_PARAMETER;
+	}
+	return WriteVirtualMemory(PageTable, VirtualAddress, Buffer, Bytes, BytesWrite);
 }
 
 
 NTSTATUS
 ReadVirtualMemory(
-	PEPROCESS Eprocess,
+	PVOID PageTable,
 	PVOID VirtualAddress,
 	PVOID Buffer,
 	SIZE_T Bytes,
@@ -93,10 +101,6 @@ ReadVirtualMemory(
 )
 {
 	if (Bytes > PAGE_SIZE) {
-		return STATUS_INVALID_PARAMETER;
-	}
-	PVOID PageTable = *(PVOID *)PTR_ADD_OFFSET(Eprocess, OffsetDirectoryTableBaseOfEProcess);
-	if (PageTable == NULL) {
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -110,7 +114,7 @@ ReadVirtualMemory(
 
 NTSTATUS
 WriteVirtualMemory(
-	PEPROCESS Eprocess,
+	PVOID PageTable,
 	PVOID VirtualAddress,
 	PVOID Buffer,
 	SIZE_T Bytes,
@@ -118,10 +122,6 @@ WriteVirtualMemory(
 )
 {
 	if (Bytes > PAGE_SIZE) {
-		return STATUS_INVALID_PARAMETER;
-	}
-	PVOID PageTable = *(PVOID *)PTR_ADD_OFFSET(Eprocess, OffsetDirectoryTableBaseOfEProcess);
-	if (PageTable == NULL) {
 		return STATUS_INVALID_PARAMETER;
 	}
 

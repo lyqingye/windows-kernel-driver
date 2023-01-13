@@ -40,7 +40,7 @@ WriteProcessVirtualMemory(
 
 NTSTATUS
 ReadVirtualMemory(
-	PEPROCESS Eprocess,
+	PVOID PageTable,
 	PVOID VirtualAddress,
 	PVOID Buffer,
 	SIZE_T Bytes,
@@ -49,7 +49,7 @@ ReadVirtualMemory(
 
 NTSTATUS
 WriteVirtualMemory(
-	PEPROCESS Eprocess,
+	PVOID PageTable,
 	PVOID VirtualAddress,
 	PVOID Buffer,
 	SIZE_T Bytes,
