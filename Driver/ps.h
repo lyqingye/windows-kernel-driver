@@ -79,4 +79,7 @@ TranslateVirtualAddressToPhysicalAddress(
 	PVOID PageTable,
 	PVOID VirtualAddress
 );
+
+BOOLEAN
+InitSystemPageTableInformation();
 #endif // !PS

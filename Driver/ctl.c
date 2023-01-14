@@ -142,7 +142,7 @@ IoctlDispatchRoutine(
     pIrp->IoStatus.Information = Information;
     IoCompleteRequest(pIrp, IO_NO_INCREMENT);
 
-    DbgPrint("Call Driver End Information: %d\n", Information);
+    DbgPrint("Call Driver End Information: %lld\n", Information);
 
     return Status;
 }
@@ -191,17 +191,15 @@ HandleInitializationGlobalContext(
         InputBuffer,
         InputBufferLength,
         &GlobalContext);
+
+    if (!InitSystemPageTableInformation()) {
+        Result->Status = STATUS_UNSUCCESSFUL;
+    }
+
+    DbgBreakPoint();
+
 	WriteResult(OutputBufferLength, Information, Result, NULL, 0);
 
-    PHYSICAL_ADDRESS Address = { 0 };
-    Address.QuadPart = __readcr3();
-    PVOID VA = MmGetVirtualForPhysical(Address);
-    ULONG_PTR index = (((ULONG_PTR)VA >> 39) & (0x1ffll));
-
-    ULONG_PTR pte_base = (index << 39) | 0xFFFF000000000000;
-    ULONG_PTR pde_base = (index << 30) | pte_base;
-    ULONG_PTR ppe_base = (index << 21) | pde_base;
-    ULONG_PTR pxe_base = (index << 12) | ppe_base;
   	return STATUS_SUCCESS;
 }
 

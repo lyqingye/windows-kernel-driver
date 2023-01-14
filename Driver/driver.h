@@ -38,6 +38,8 @@ ULONG_PTR OffsetTypeNameOfObjectType;
 ULONG_PTR OffsetTypeInfoOfObjectType;
 ULONG_PTR OffsetDirectoryTableBaseOfEProcess;
 
+ULONG_PTR PTE_BASE,PDE_BASE,PPE_BASE,PXE_BASE;
+
 #define DEVICE_NAME  L"\\Device\\WindowsKernelResearch"
 #define SYMBOL_LINK_NAME L"\\??\\WindowsKernelResearch"
 

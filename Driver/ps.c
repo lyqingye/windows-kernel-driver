@@ -104,6 +104,7 @@ ReadVirtualMemory(
 		return STATUS_INVALID_PARAMETER;
 	}
 
+
 	PVOID PA = TranslateVirtualAddressToPhysicalAddress(PageTable,VirtualAddress);
 	if (PA == NULL) {
 		return STATUS_UNSUCCESSFUL;
@@ -236,5 +237,21 @@ TranslateVirtualAddressToPhysicalAddress(
 
 ULONG_PTR
 FindPageTableSelfMappingIndex() {
-	return 0;
+	PHYSICAL_ADDRESS Address = { .QuadPart = __readcr3() };
+	PVOID VA = MmGetVirtualForPhysical(Address);
+	ULONG_PTR Index = (((ULONG_PTR)VA >> 39) & (0x1ffll));
+	return Index;
+}
+
+BOOLEAN
+InitSystemPageTableInformation() {
+	ULONG_PTR Index = FindPageTableSelfMappingIndex();
+	PTE_BASE = (Index << 39) | 0xFFFF000000000000;
+	PDE_BASE = (Index << 30) | PTE_BASE;
+	PPE_BASE = (Index << 21) | PDE_BASE;
+	PXE_BASE = (Index << 12) | PPE_BASE;
+	return MmIsAddressValid((PVOID)PTE_BASE) && \
+		MmIsAddressValid((PVOID)PDE_BASE) && \
+		MmIsAddressValid((PVOID)PPE_BASE) && \
+		MmIsAddressValid((PVOID)PXE_BASE);
 }
