@@ -59,7 +59,6 @@ ReadProcessVirtualMemory(
 	PSIZE_T BytesRead
 )
 {
-	DbgBreakPoint();
 	PEPROCESS Eprocess = NULL;
 	if (!NT_SUCCESS(PsLookupProcessByProcessId(ProcessId, &Eprocess))) {
 		return STATUS_UNSUCCESSFUL;
@@ -158,13 +157,19 @@ WritePhysicalMemory(
 {
 	PHYSICAL_ADDRESS AddressToWrite = { 0 };
 	AddressToWrite.QuadPart = (ULONG_PTR)PhysicalAddress;
-
+	
 	PVOID Mapped = MmMapIoSpaceEx(AddressToWrite, Bytes, PAGE_READWRITE);
-	if (!Mapped) {
+	if (Mapped == NULL) {
 		return STATUS_UNSUCCESSFUL;
 	}
-	RtlCopyMemory(Mapped, Buffer, Bytes);
-	*BytesWrite = Bytes;
+	if (MmIsAddressValid(Mapped)) {
+		RtlCopyMemory(Mapped, Buffer, Bytes);
+		*BytesWrite = Bytes;
+	}
+	else {
+		MmUnmapIoSpace(Mapped, Bytes);
+		return STATUS_NO_MEMORY;
+	}
 	MmUnmapIoSpace(Mapped, Bytes);
 	return STATUS_SUCCESS;
 }

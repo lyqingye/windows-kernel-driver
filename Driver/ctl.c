@@ -144,6 +144,7 @@ IoctlDispatchRoutine(
             Output,
             &Information
         );
+        break;
     case CTL_CODE_FREE_PHYSICAL_MEMORY:
         Status = HandleFreePhysicalMemory(
             pDevObj,
@@ -153,6 +154,7 @@ IoctlDispatchRoutine(
             Output,
             &Information
         );
+        break;
     case CTL_CODE_READ_PHYSICAL_MEMORY:
         Status = HandleReaPhysicalMemory(
             pDevObj,
@@ -360,9 +362,8 @@ HandleAllocatePhysicalMemory(
 )
 {
     UNREFERENCED_PARAMETER(DeviceObject);
-
+   
     typedef struct _PARAM {
-        PVOID Address;
         SIZE_T NumOfBytes;
     }PARAM;
     if (InputBufferLength < sizeof(PARAM)) {
@@ -382,15 +383,16 @@ HandleAllocatePhysicalMemory(
     }
 
     // Allocate Physical Memory
-    PHYSICAL_ADDRESS PhysicallAddress = { .QuadPart = (ULONG_PTR)Param.Address };
-    PVOID MemoryAddress = MmAllocateContiguousMemory(Param.NumOfBytes, PhysicallAddress);
+    PHYSICAL_ADDRESS PhysicallAddress = { .QuadPart = MAXULONG64 };
+    PVOID VirtuaAddress = MmAllocateContiguousMemory(Param.NumOfBytes, PhysicallAddress);
 
-    if (MemoryAddress != NULL) {
+    if (VirtuaAddress == NULL) {
         Result->Status = STATUS_NO_MEMORY;
-        WriteResult(OutputBufferLength, Information, Result, (PVOID)&MemoryAddress, sizeof(PVOID));
     }
     else {
         Result->Status = STATUS_SUCCESS;
+        PHYSICAL_ADDRESS AllocateAddress = MmGetPhysicalAddress(VirtuaAddress);
+		WriteResult(OutputBufferLength, Information, Result, (PVOID)&AllocateAddress, sizeof(PHYSICAL_ADDRESS));
     }
 
     return STATUS_SUCCESS;
@@ -406,6 +408,7 @@ HandleFreePhysicalMemory(
     PULONG_PTR Information
 )
 {
+    DbgBreakPoint();
     UNREFERENCED_PARAMETER(DeviceObject);
 
     typedef struct _PARAM {
@@ -427,9 +430,18 @@ HandleFreePhysicalMemory(
         return Status;
     }
 
-    // Free Physical Memory
-    MmFreeContiguousMemory(Param.Address);
-    Result->Status = STATUS_SUCCESS;
+	PHYSICAL_ADDRESS PhysicallAddress = { .QuadPart = (ULONG_PTR)Param.Address };
+    if (Param.Address != NULL) {
+		// Free Physical Memory
+        PVOID VirtualAddress = MmGetVirtualForPhysical(PhysicallAddress);
+        if (MmIsAddressValid(VirtualAddress)) {
+			MmFreeContiguousMemory(VirtualAddress);
+        }
+		Result->Status = STATUS_SUCCESS;
+    }
+    else {
+        Result->Status = STATUS_INVALID_ADDRESS;
+    }
 
     return STATUS_SUCCESS;
 }
