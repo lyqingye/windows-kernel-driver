@@ -59,6 +59,7 @@ ReadProcessVirtualMemory(
 	PSIZE_T BytesRead
 )
 {
+	DbgBreakPoint();
 	PEPROCESS Eprocess = NULL;
 	if (!NT_SUCCESS(PsLookupProcessByProcessId(ProcessId, &Eprocess))) {
 		return STATUS_UNSUCCESSFUL;

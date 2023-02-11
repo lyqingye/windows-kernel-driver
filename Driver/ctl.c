@@ -135,6 +135,44 @@ IoctlDispatchRoutine(
             &Information
         );
         break;
+    case CTL_CODE_ALLOC_PHYSICAL_MEMORY:
+        Status = HandleAllocatePhysicalMemory(
+            pDevObj,
+            InputBufferLength,
+            OutputBufferLength,
+            Input,
+            Output,
+            &Information
+        );
+    case CTL_CODE_FREE_PHYSICAL_MEMORY:
+        Status = HandleFreePhysicalMemory(
+            pDevObj,
+            InputBufferLength,
+            OutputBufferLength,
+            Input,
+            Output,
+            &Information
+        );
+    case CTL_CODE_READ_PHYSICAL_MEMORY:
+        Status = HandleReaPhysicalMemory(
+            pDevObj,
+            InputBufferLength,
+            OutputBufferLength,
+            Input,
+            Output,
+            &Information
+        );
+        break;
+    case CTL_CODE_WRITE_PHYSICAL_MEMORY:
+        Status = HandleWritePhysicalMemory(
+            pDevObj,
+            InputBufferLength,
+            OutputBufferLength,
+            Input,
+            Output,
+            &Information
+        );
+        break;
     default:
         break;
     }
@@ -195,8 +233,6 @@ HandleInitializationGlobalContext(
     if (!InitSystemPageTableInformation()) {
         Result->Status = STATUS_UNSUCCESSFUL;
     }
-
-    DbgBreakPoint();
 
 	WriteResult(OutputBufferLength, Information, Result, NULL, 0);
 
@@ -307,6 +343,175 @@ HandleWriteProcessMemory(
 	if (!NT_SUCCESS(Status)) {
 		return Status;
 	}
+    Result->Status = CallStatus;
+    WriteResult(OutputBufferLength, Information, Result, (PVOID)&BytesToWrite, sizeof(SIZE_T));
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+HandleAllocatePhysicalMemory(
+    PDEVICE_OBJECT DeviceObject,
+    ULONG InputBufferLength,
+    ULONG OutputBufferLength,
+    PVOID InputBuffer,
+    PVOID OutputBuffer,
+    PULONG_PTR Information
+)
+{
+    UNREFERENCED_PARAMETER(DeviceObject);
+
+    typedef struct _PARAM {
+        PVOID Address;
+        SIZE_T NumOfBytes;
+    }PARAM;
+    if (InputBufferLength < sizeof(PARAM)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+    // Copy Param
+    PARAM Param = *(PARAM*)InputBuffer;
+    SIZE_T NeedSize = sizeof(PARAM);
+    if (InputBufferLength < NeedSize) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    PRESULT Result;
+    NTSTATUS Status = CreateResult(OutputBuffer, OutputBufferLength, Information, &Result);
+    if (!NT_SUCCESS(Status)) {
+        return Status;
+    }
+
+    // Allocate Physical Memory
+    PHYSICAL_ADDRESS PhysicallAddress = { .QuadPart = (ULONG_PTR)Param.Address };
+    PVOID MemoryAddress = MmAllocateContiguousMemory(Param.NumOfBytes, PhysicallAddress);
+
+    if (MemoryAddress != NULL) {
+        Result->Status = STATUS_NO_MEMORY;
+        WriteResult(OutputBufferLength, Information, Result, (PVOID)&MemoryAddress, sizeof(PVOID));
+    }
+    else {
+        Result->Status = STATUS_SUCCESS;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+HandleFreePhysicalMemory(
+    PDEVICE_OBJECT DeviceObject,
+    ULONG InputBufferLength,
+    ULONG OutputBufferLength,
+    PVOID InputBuffer,
+    PVOID OutputBuffer,
+    PULONG_PTR Information
+)
+{
+    UNREFERENCED_PARAMETER(DeviceObject);
+
+    typedef struct _PARAM {
+        PVOID Address;
+    }PARAM;
+    if (InputBufferLength < sizeof(PARAM)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+    // Copy Param
+    PARAM Param = *(PARAM*)InputBuffer;
+    SIZE_T NeedSize = sizeof(PARAM);
+    if (InputBufferLength < NeedSize) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    PRESULT Result;
+    NTSTATUS Status = CreateResult(OutputBuffer, OutputBufferLength, Information, &Result);
+    if (!NT_SUCCESS(Status)) {
+        return Status;
+    }
+
+    // Free Physical Memory
+    MmFreeContiguousMemory(Param.Address);
+    Result->Status = STATUS_SUCCESS;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+HandleReaPhysicalMemory(
+    PDEVICE_OBJECT DeviceObject,
+    ULONG InputBufferLength,
+    ULONG OutputBufferLength,
+    PVOID InputBuffer,
+    PVOID OutputBuffer,
+    PULONG_PTR Information
+)
+{
+    UNREFERENCED_PARAMETER(DeviceObject);
+
+    typedef struct _PARAM {
+        PVOID Address;
+        SIZE_T NumOfBytes;
+    }PARAM;
+
+    if (InputBufferLength < sizeof(PARAM)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+    // Copy Param
+    PARAM Param = *(PARAM*)InputBuffer;
+
+    PRESULT Result;
+    NTSTATUS Status = CreateResult(OutputBuffer, OutputBufferLength, Information, &Result);
+    if (!NT_SUCCESS(Status)) {
+        return Status;
+    }
+
+    SIZE_T NeedSize = sizeof(RESULT) + Param.NumOfBytes;
+    if (OutputBufferLength < NeedSize) {
+        *Information = NeedSize;
+        goto Exit;
+    }
+    PVOID ReadBuffer = PTR_ADD_OFFSET(OutputBuffer, sizeof(RESULT));
+    Result->Status = ReadPhysicalMemory(Param.Address, ReadBuffer, Param.NumOfBytes, &Result->SizeOfData);
+    *Information = sizeof(RESULT) + Result->SizeOfData;
+Exit:
+    return STATUS_SUCCESS;
+}
+
+
+NTSTATUS
+HandleWritePhysicalMemory(
+    PDEVICE_OBJECT DeviceObject,
+    ULONG InputBufferLength,
+    ULONG OutputBufferLength,
+    PVOID InputBuffer,
+    PVOID OutputBuffer,
+    PULONG_PTR Information
+)
+{
+    UNREFERENCED_PARAMETER(DeviceObject);
+    typedef struct _PARAM {
+        PVOID Address;
+        SIZE_T NumOfBytes;
+    }PARAM;
+    if (InputBufferLength < sizeof(PARAM)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+    // Copy Param
+    PARAM Param = *(PARAM*)InputBuffer;
+    SIZE_T NeedSize = sizeof(PARAM);
+    if (InputBufferLength < NeedSize) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    // Write Memory
+    PVOID WriteBuffer = PTR_ADD_OFFSET(InputBuffer, sizeof(PARAM));
+    SIZE_T BytesToWrite = 0;
+    NTSTATUS CallStatus = WritePhysicalMemory(Param.Address, WriteBuffer, Param.NumOfBytes, &BytesToWrite);
+
+    // Fill Result
+    PRESULT Result;
+    NTSTATUS Status = CreateResult(OutputBuffer, OutputBufferLength, Information, &Result);
+    if (!NT_SUCCESS(Status)) {
+        return Status;
+    }
     Result->Status = CallStatus;
     WriteResult(OutputBufferLength, Information, Result, (PVOID)&BytesToWrite, sizeof(SIZE_T));
 
